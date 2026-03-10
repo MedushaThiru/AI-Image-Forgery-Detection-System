@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Image Forgery Detection System | Medusha 02001849</title>
+
+<style>
+
+:root{
+--bg-dark:#080a0c;
+--card-dark:#111418;
+--accent-cyan:#00f2ff;
+--accent-blue:#0070ff;
+--text-gray:#94a3b8;
+--glass-border:rgba(255,255,255,0.1);
+}
+
+body{
+background-color:var(--bg-dark);
+color:#e2e8f0;
+font-family:'Segoe UI',sans-serif;
+margin:0;
+padding:20px;
+}
+
+.system-header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+border-bottom:1px solid var(--glass-border);
+padding-bottom:15px;
+margin-bottom:30px;
+}
+
+.system-title{
+font-weight:800;
+color:var(--accent-cyan);
+text-transform:uppercase;
+}
+
+.terminal-log{
+background:#000;
+border-left:3px solid var(--accent-cyan);
+padding:12px;
+font-family:monospace;
+font-size:11px;
+color:var(--accent-cyan);
+height:80px;
+margin-bottom:20px;
+}
+
+.forensic-container{
+display:grid;
+grid-template-columns:360px 1fr;
+gap:25px;
+}
+
+.main-card{
+background:var(--card-dark);
+border:1px solid var(--glass-border);
+border-radius:12px;
+padding:25px;
+margin-bottom:20px;
+}
+
+.verdict-display{
+text-align:center;
+padding:20px;
+border:2px solid;
+border-radius:15px;
+margin-bottom:20px;
+}
+
+.verdict-text{
+font-size:3.5rem;
+font-weight:900;
+margin:0;
+}
+
+.img-container{
+position:relative;
+border-radius:8px;
+border:1px solid var(--glass-border);
+background:#000;
+margin-bottom:10px;
+overflow:hidden;
+}
+
+.img-container img{
+width:100%;
+display:block;
+}
+
+.scan-line{
+position:absolute;
+top:0;
+left:0;
+width:100%;
+height:2px;
+background:var(--accent-cyan);
+box-shadow:0 0 15px var(--accent-cyan);
+animation:scan 3s linear infinite;
+}
+
+@keyframes scan{
+0%{top:0;}
+100%{top:100%;}
+}
+
+.bar-bg{
+background:#1e293b;
+height:12px;
+border-radius:6px;
+overflow:hidden;
+margin:10px 0;
+}
+
+.bar-fill{
+height:100%;
+width:0%;
+background:linear-gradient(90deg,var(--accent-blue),var(--accent-cyan));
+transition:width 2s ease;
+}
+
+.btn-analyze{
+background:transparent;
+border:1px solid var(--accent-cyan);
+color:var(--accent-cyan);
+padding:14px;
+cursor:pointer;
+width:100%;
+font-weight:bold;
+text-transform:uppercase;
+transition:0.3s;
+}
+
+.btn-analyze:hover{
+background:var(--accent-cyan);
+color:#000;
+}
+
+.grid-visuals{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:20px;
+}
+
+.tech-label{
+font-size:10px;
+color:var(--text-gray);
+text-transform:uppercase;
+display:block;
+margin-bottom:5px;
+}
+
+.file-upload-wrapper{
+border:1px dashed var(--accent-cyan);
+padding:20px;
+text-align:center;
+position:relative;
+cursor:pointer;
+}
+
+.file-upload-wrapper input{
+position:absolute;
+left:0;
+top:0;
+opacity:0;
+width:100%;
+height:100%;
+cursor:pointer;
+}
+
+#fileNameDisplay{
+display:block;
+margin-top:10px;
+font-size:12px;
+color:var(--accent-cyan);
+font-style:italic;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="system-header">
+<div class="system-title">AI IMAGE FORGERY DETECTION SYSTEM</div>
+<div style="font-size:12px;">STATUS: ACTIVE // ID: 02001849</div>
+</div>
+
+<div class="terminal-log">
+> System Initialized...<br>
+{% if final_score %}
+> Analysis Complete. Rendering Forensic Visualizations...
+{% else %}
+> Awaiting Image Input...
+{% endif %}
+</div>
+
+<div class="forensic-container">
+
+<!-- LEFT PANEL -->
+<div>
+
+<div class="main-card">
+
+<form method="POST" enctype="multipart/form-data" id="uploadForm">
+
+<label class="tech-label">Select Image</label>
+
+<div class="file-upload-wrapper">
+
+<span>CLICK OR DRAG IMAGE HERE</span>
+
+<input type="file" name="image" id="fileInput" required onchange="updateFileName()">
+
+<span id="fileNameDisplay">No file chosen</span>
+
+</div>
+
+<button type="submit" class="btn-analyze" style="margin-top:15px;">
+Execute Analysis
+</button>
+
+</form>
+
+</div>
+
+
+{% if final_score %}
+
+<div class="main-card">
+
+<div class="verdict-display" style="border-color: {{ verdict_color }}; color: {{ verdict_color }};">
+
+<span class="tech-label">Classification</span>
+
+<div class="verdict-text">{{ verdict }}</div>
+
+</div>
+
+<span class="tech-label">Probability: {{ final_score }}%</span>
+
+<div class="bar-bg">
+<div id="scoreBar" class="bar-fill"></div>
+</div>
+
+<div style="font-size:13px;margin-top:10px;">
+Risk: <b>{{ risk_level }}</b> |
+Confidence: <b>{{ confidence }}%</b>
+</div>
+
+<div style="margin-top:20px;border-top:1px solid var(--glass-border);padding-top:15px;">
+
+<span class="tech-label" style="color:var(--accent-cyan);">
+Forensic Metrics
+</span>
+
+<div style="font-size:11px;color:var(--text-gray);line-height:2;">
+
+ELA Discrepancy:
+<span style="float:right;color:#fff;">{{ ela_score }}%</span><br>
+
+Noise Variance:
+<span style="float:right;color:#fff;">{{ noise_score }}%</span><br>
+
+Uniformity:
+<span style="float:right;color:#fff;">{{ uniformity_score }}%</span>
+
+</div>
+
+</div>
+
+</div>
+
+{% endif %}
+
+</div>
+
+
+<!-- RIGHT PANEL -->
+
+<div class="main-card">
+
+<span class="tech-label" style="color:var(--accent-cyan);">
+Forensic Visual Analysis
+</span>
+
+{% if final_score %}
+
+<div class="grid-visuals" style="margin-top:20px;">
+
+<div class="img-container">
+<span class="tech-label">01 Source Image</span>
+<div class="scan-line"></div>
+<img src="{{ uploaded_image }}">
+</div>
+
+<div class="img-container">
+<span class="tech-label">02 ELA Map</span>
+<img src="{{ ela_image }}">
+</div>
+
+<div class="img-container">
+<span class="tech-label">03 Noise Map</span>
+<img src="{{ noise_image }}">
+</div>
+
+<div class="img-container">
+<span class="tech-label">04 Tampering Heatmap</span>
+<img src="{{ heatmap_image }}">
+</div>
+
+{% if boxed_image %}
+<div class="img-container">
+<span class="tech-label">05 Detected Tampered Regions</span>
+<img src="{{ boxed_image }}">
+</div>
+{% endif %}
+
+</div>
+
+{% else %}
+
+<div style="height:300px;display:flex;align-items:center;justify-content:center;border:1px dashed #333;color:#444;margin-top:20px;">
+SYSTEM STANDBY: UPLOAD IMAGE
+</div>
+
+{% endif %}
+
+</div>
+
+</div>
+
+
+<script>
+
+function updateFileName(){
+
+const input=document.getElementById("fileInput")
+const display=document.getElementById("fileNameDisplay")
+
+if(input.files.length>0){
+
+display.innerText="Selected: "+input.files[0].name
+
+display.style.color="#00f2ff"
+
+}
+
+}
+
+window.onload=function(){
+
+if(document.getElementById("scoreBar")){
+
+setTimeout(function(){
+
+document.getElementById("scoreBar").style.width="{{ final_score }}%"
+
+},300)
+
+}
+
+}
+
+</script>
+
+</body>
+</html>
