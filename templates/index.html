@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ForensicAI — Image Integrity System</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg:        #040608;
+  --surface:   #080d12;
+  --panel:     #0b1219;
+  --border:    rgba(0,210,255,0.15);
+  --cyan:      #00d2ff;
+  --cyan-dim:  rgba(0,210,255,0.08);
+  --red:       #ff2d4a;
+  --green:     #00ff9d;
+  --amber:     #ffb300;
+  --text:      #c8d8e8;
+  --muted:     #445566;
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-hud:  'Orbitron', sans-serif;
+  --font-body: 'Rajdhani', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── PARTICLE CANVAS ── */
+#particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.4; }
+
+/* ── GRID OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(0,210,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,210,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+/* ── SCANLINE ── */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 1;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+  pointer-events: none;
+}
+
+.wrapper { position: relative; z-index: 2; max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+/* ── HEADER ── */
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px;
+  border: 1px solid var(--border);
+  background: linear-gradient(90deg, rgba(0,210,255,0.05), transparent);
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.hdr::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--cyan);
+  box-shadow: 0 0 20px var(--cyan);
+}
+.hdr-title {
+  font-family: var(--font-hud);
+  font-size: clamp(13px, 2vw, 18px);
+  font-weight: 900;
+  color: var(--cyan);
+  letter-spacing: 3px;
+  text-shadow: 0 0 20px rgba(0,210,255,0.5);
+}
+.hdr-meta { font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-align: right; line-height: 1.8; }
+.hdr-meta span { color: var(--cyan); }
+
+/* ── STATUS BAR ── */
+.status-bar {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--cyan);
+  background: rgba(0,210,255,0.04);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--cyan);
+  padding: 10px 16px;
+  margin-bottom: 24px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.status-bar::before { content: '> '; opacity: 0.5; }
+.blink { animation: blink 1s step-end infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ── LAYOUT ── */
+.layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+@media(max-width:900px) { .layout { grid-template-columns: 1fr; } }
+
+/* ── PANEL ── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 20px;
+  position: relative;
+}
+.panel::after {
+  content: '';
+  position: absolute; bottom: 0; right: 0;
+  width: 16px; height: 16px;
+  border-right: 2px solid var(--cyan);
+  border-bottom: 2px solid var(--cyan);
+}
+.panel::before {
+  content: '';
+  position: absolute; top: 0; left: 0;
+  width: 16px; height: 16px;
+  border-left: 2px solid var(--cyan);
+  border-top: 2px solid var(--cyan);
+}
+
+.section-label {
+  font-family: var(--font-hud);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--cyan);
+  opacity: 0.7;
+  margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ── UPLOAD ZONE ── */
+.upload-zone {
+  border: 1px dashed rgba(0,210,255,0.3);
+  padding: 28px 16px;
+  text-align: center;
+  position: relative;
+  cursor: pointer;
+  transition: 0.3s;
+  background: rgba(0,210,255,0.02);
+}
+.upload-zone:hover { border-color: var(--cyan); background: rgba(0,210,255,0.06); }
+.upload-zone input {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.upload-icon { font-size: 32px; margin-bottom: 10px; opacity: 0.6; }
+.upload-text { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.upload-name { font-family: var(--font-mono); font-size: 11px; color: var(--cyan); margin-top: 8px; font-style: italic; min-height: 16px; }
+
+/* ── BUTTON ── */
+.btn-run {
+  width: 100%; margin-top: 14px;
+  background: transparent;
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  font-family: var(--font-hud);
+  font-size: 12px;
+  letter-spacing: 3px;
+  padding: 14px;
+  cursor: pointer;
+  transition: 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+.btn-run::before {
+  content: '';
+  position: absolute; left: -100%; top: 0; bottom: 0; width: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0,210,255,0.15), transparent);
+  transition: 0.4s;
+}
+.btn-run:hover { background: var(--cyan); color: #000; box-shadow: 0 0 30px rgba(0,210,255,0.4); }
+.btn-run:hover::before { left: 100%; }
+
+/* ── VERDICT ── */
+.verdict-box {
+  border: 1px solid;
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.verdict-box::before {
+  content: '';
+  position: absolute; inset: 0;
+  opacity: 0.05;
+  background: currentColor;
+}
+.verdict-tag { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; opacity: 0.6; margin-bottom: 6px; display: block; }
+.verdict-word {
+  font-family: var(--font-hud);
+  font-size: 3rem;
+  font-weight: 900;
+  letter-spacing: 6px;
+  text-shadow: 0 0 30px currentColor;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+@keyframes pulse-glow {
+  0%,100% { text-shadow: 0 0 20px currentColor; }
+  50%      { text-shadow: 0 0 50px currentColor, 0 0 80px currentColor; }
+}
+
+/* ── METRICS ── */
+.metric-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 13px;
+}
+.metric-label { color: var(--muted); font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; }
+.metric-val { font-family: var(--font-hud); font-size: 13px; color: var(--cyan); }
+
+/* ── SCORE BAR ── */
+.score-section { margin: 14px 0; }
+.score-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-family: var(--font-mono); font-size: 11px; }
+.score-track { height: 6px; background: rgba(255,255,255,0.06); border-radius: 0; overflow: hidden; position: relative; }
+.score-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--cyan), #0070ff);
+  box-shadow: 0 0 12px var(--cyan);
+  transition: width 1.5s cubic-bezier(0.4,0,0.2,1);
+  position: relative;
+}
+.score-fill::after {
+  content: '';
+  position: absolute; right: 0; top: -3px; bottom: -3px; width: 3px;
+  background: #fff;
+  box-shadow: 0 0 8px #fff;
+}
+
+/* ── GAUGE ── */
+.gauges { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 16px 0; }
+.gauge-wrap { text-align: center; }
+.gauge-label { font-family: var(--font-mono); font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-bottom: 6px; display: block; }
+.gauge-val { font-family: var(--font-hud); font-size: 16px; font-weight: 700; }
+.gauge-bar { height: 3px; background: rgba(255,255,255,0.06); margin-top: 5px; overflow: hidden; }
+.gauge-bar-fill { height: 100%; width: 0%; transition: width 1.8s cubic-bezier(0.4,0,0.2,1); }
+
+/* ── IMAGE GRID ── */
+.img-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.img-cell { position: relative; background: #000; border: 1px solid var(--border); overflow: hidden; }
+.img-cell-label {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px;
+  color: var(--muted); padding: 6px 10px;
+  background: rgba(0,0,0,0.6);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
+}
+.img-cell-label .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+.img-cell img { width: 100%; display: block; }
+.img-scan {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  box-shadow: 0 0 10px var(--cyan);
+  animation: imgscan 3s linear infinite;
+  pointer-events: none;
+}
+@keyframes imgscan { 0% { top: 30px; } 100% { top: 100%; } }
+
+/* ── STANDBY ── */
+.standby {
+  height: 320px; display: flex; align-items: center; justify-content: center;
+  border: 1px dashed rgba(255,255,255,0.06);
+  flex-direction: column; gap: 12px;
+}
+.standby-icon { font-size: 48px; opacity: 0.1; }
+.standby-text { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: 2px; }
+
+/* ── RISK BADGE ── */
+.risk-badge {
+  display: inline-block;
+  font-family: var(--font-hud);
+  font-size: 10px;
+  letter-spacing: 2px;
+  padding: 3px 10px;
+  border: 1px solid;
+}
+
+/* ── CORNER DECORATIONS ── */
+.corner-deco {
+  position: absolute; width: 60px; height: 60px;
+  top: -1px; right: -1px;
+  overflow: hidden; pointer-events: none;
+}
+.corner-deco::before {
+  content: '';
+  position: absolute; top: 0; right: 0;
+  border-style: solid;
+  border-width: 0 30px 30px 0;
+  border-color: transparent var(--cyan) transparent transparent;
+  opacity: 0.3;
+}
+
+/* ── DIVIDER ── */
+.divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+/* ── FOOTER ── */
+.footer {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  padding: 20px 0 8px;
+  letter-spacing: 2px;
+}
+.footer span { color: var(--cyan); }
+
+.visual-guide {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  margin-top: 8px; padding: 10px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.3);
+}
+.guide-item {
+  display: flex; align-items: center; gap: 7px;
+  font-family: var(--font-mono); font-size: 10px; color: var(--muted);
+  flex: 1; min-width: 200px;
+}
+.guide-dot { width: 10px; height: 10px; border: 2px solid; flex-shrink: 0; }
+.guide-title {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 2px; color: var(--muted);
+  margin-bottom: 4px; margin-top: 12px;
+}
+.heatmap-guide {
+  display: flex; height: 12px; width: 100%;
+  margin-top: 4px; border: 1px solid var(--border);
+}
+.hm-seg { flex: 1; }
+.heatmap-labels {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 9px; color: var(--muted); margin-top: 3px;
+}
+</style>
+</head>
+
+<body>
+<canvas id="particles"></canvas>
+
+<div class="wrapper">
+
+  <!-- HEADER -->
+  <header class="hdr">
+    <div class="hdr-title">⬡ FORENSICAI // IMAGE INTEGRITY SYSTEM</div>
+    <div class="hdr-meta">
+      OPERATOR: <span>MEDUSHA THIRUNAVUKKARASU</span><br>
+      ID: <span>02001849</span> // STATUS: <span>ONLINE</span>
+    </div>
+  </header>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar">
+    {% if final_score %}
+      ANALYSIS COMPLETE — VERDICT RENDERED — FORENSIC MAPS GENERATED
+    {% else %}
+      SYSTEM READY — AWAITING IMAGE INPUT — ALL MODULES NOMINAL <span class="blink">█</span>
+    {% endif %}
+  </div>
+
+  <div class="layout">
+
+    <!-- ═══ LEFT PANEL ═══ -->
+    <div>
+
+      <!-- UPLOAD -->
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="section-label">INPUT MODULE</div>
+        <form method="POST" enctype="multipart/form-data" id="uploadForm">
+        <div class="upload-zone" id="uploadZone">
+          <div class="upload-icon">⬡</div>
+          <div class="upload-text">DRAG & DROP OR CLICK TO SELECT</div>
+          <div class="upload-text" style="margin-top:4px;font-size:10px;">JPG · PNG · WEBP · AVIF</div>
+          <input type="file" name="image" id="fileInput" required onchange="updateFileName()">
+          <div class="upload-name" id="fileNameDisplay">NO FILE SELECTED</div>
+        </div>
+        <button type="submit" class="btn-run">▶ EXECUTE FORENSIC ANALYSIS</button>
+        </form>
+      </div>
+
+      {% if final_score %}
+
+      <!-- VERDICT -->
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="section-label">CLASSIFICATION OUTPUT</div>
+
+        <div class="verdict-box" style="color:{{ verdict_color }}; border-color:{{ verdict_color }};">
+          <span class="verdict-tag">[ FORENSIC VERDICT ]</span>
+          <div class="verdict-word">{{ verdict }}</div>
+        </div>
+
+        <!-- SCORE BAR -->
+        <div class="score-section">
+          <div class="score-header">
+            <span style="color:var(--muted);">TAMPERING PROBABILITY</span>
+            <span style="color:var(--cyan);">{{ final_score }}%</span>
+          </div>
+          <div class="score-track">
+            <div class="score-fill" id="scoreBar"></div>
+          </div>
+        </div>
+
+        <!-- RISK + CONFIDENCE -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0;">
+          <span class="risk-badge" style="
+            color:{% if risk_level == 'HIGH' %}var(--red){% else %}var(--green){% endif %};
+            border-color:{% if risk_level == 'HIGH' %}var(--red){% else %}var(--green){% endif %};">
+            {{ risk_level }} RISK
+          </span>
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">
+            CONFIDENCE: <span style="color:var(--cyan);">{{ confidence }}%</span>
+          </span>
+        </div>
+
+        <hr class="divider">
+
+        <!-- GAUGE ROW -->
+        <div class="section-label" style="margin-top:4px;">FORENSIC METRICS</div>
+        <div class="gauges">
+          <div class="gauge-wrap">
+            <span class="gauge-label">ELA</span>
+            <div class="gauge-val" style="color:var(--cyan);" id="g1">{{ ela_score }}%</div>
+            <div class="gauge-bar"><div class="gauge-bar-fill" id="gb1" style="background:var(--cyan);"></div></div>
+          </div>
+          <div class="gauge-wrap">
+            <span class="gauge-label">NOISE</span>
+            <div class="gauge-val" style="color:var(--amber);" id="g2">{{ noise_score }}%</div>
+            <div class="gauge-bar"><div class="gauge-bar-fill" id="gb2" style="background:var(--amber);"></div></div>
+          </div>
+          <div class="gauge-wrap">
+            <span class="gauge-label">UNIFORMITY</span>
+            <div class="gauge-val" style="color:{% if verdict == 'TAMPERED' %}var(--red){% else %}var(--green){% endif %};" id="g3">{{ uniformity_score }}%</div>
+            <div class="gauge-bar"><div class="gauge-bar-fill" id="gb3" style="background:{% if verdict == 'TAMPERED' %}var(--red){% else %}var(--green){% endif %};"></div></div>
+          </div>
+        </div>
+
+        <!-- METRIC ROWS -->
+        <div class="metric-row">
+          <span class="metric-label">ANOMALY PIXELS</span>
+          <span class="metric-val">{{ anomaly_ratio }}%</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">ELA DISCREPANCY</span>
+          <span class="metric-val">{{ ela_score }}%</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">NOISE VARIANCE</span>
+          <span class="metric-val">{{ noise_score }}%</span>
+        </div>
+
+      </div>
+
+      {% endif %}
+
+
+      {% if feedback_msg is defined %}
+      <div class="panel" style="margin-bottom:16px;border-color:var(--green);text-align:center;padding:30px 20px;">
+        <div style="font-size:32px;margin-bottom:12px;">✅</div>
+        <div style="font-family:var(--font-hud);font-size:13px;color:var(--green);letter-spacing:2px;margin-bottom:8px;">
+          MODEL UPDATED
+        </div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text);margin-bottom:20px;line-height:1.8;">
+          {{ feedback_msg }}
+        </div>
+        <a href="/" style="display:inline-block;background:transparent;border:1px solid var(--cyan);
+           color:var(--cyan);font-family:var(--font-hud);font-size:11px;letter-spacing:2px;
+           padding:10px 24px;text-decoration:none;transition:0.3s;"
+           onmouseover="this.style.background='var(--cyan)';this.style.color='#000'"
+           onmouseout="this.style.background='transparent';this.style.color='var(--cyan)'">
+          ▶ ANALYSE ANOTHER IMAGE
+        </a>
+      </div>
+      {% endif %}
+
+
+
+      {% if fb_ela is defined %}
+      <!-- FEEDBACK BUTTONS — separate form, no file upload -->
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="section-label">RESULT INCORRECT?</div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:10px;">
+          If the result is wrong, click the correct answer below.<br>
+          The system will <span style="color:var(--cyan);">retrain automatically</span> and improve.
+        </div>
+        <form method="POST" action="/feedback">
+          <input type="hidden" name="fb_ela"   value="{{ fb_ela }}">
+          <input type="hidden" name="fb_noise" value="{{ fb_noise }}">
+          <input type="hidden" name="fb_unif"  value="{{ fb_unif }}">
+          <input type="hidden" name="fb_dct"   value="{{ fb_dct }}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <button type="submit" name="feedback_action" value="mark_fake"
+              style="background:transparent;border:1px solid #ff4d4d;color:#ff4d4d;
+                     font-family:var(--font-hud);font-size:10px;letter-spacing:2px;
+                     padding:10px;cursor:pointer;transition:0.3s;"
+              onmouseover="this.style.background='#ff4d4d';this.style.color='#000'"
+              onmouseout="this.style.background='transparent';this.style.color='#ff4d4d'">
+              ✗ THIS IS FAKE
+            </button>
+            <button type="submit" name="feedback_action" value="mark_real"
+              style="background:transparent;border:1px solid #00cc7a;color:#00cc7a;
+                     font-family:var(--font-hud);font-size:10px;letter-spacing:2px;
+                     padding:10px;cursor:pointer;transition:0.3s;"
+              onmouseover="this.style.background='#00cc7a';this.style.color='#000'"
+              onmouseout="this.style.background='transparent';this.style.color='#00cc7a'">
+              ✓ THIS IS REAL
+            </button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- ═══ RIGHT PANEL ═══ -->
+    <div class="panel">
+      <div class="section-label">FORENSIC VISUAL ANALYSIS</div>
+
+      {% if final_score %}
+      <div class="img-grid">
+
+        <div class="img-cell">
+          <div class="img-cell-label"><span class="dot"></span>01 — SOURCE IMAGE</div>
+          <div class="img-scan"></div>
+          <img src="{{ uploaded_image }}" alt="Source">
+        </div>
+
+        <div class="img-cell">
+          <div class="img-cell-label"><span class="dot" style="background:var(--amber);box-shadow:0 0 6px var(--amber);"></span>02 — ELA MAP</div>
+          <img src="{{ ela_image }}" alt="ELA">
+        </div>
+
+        <div class="img-cell">
+          <div class="img-cell-label"><span class="dot" style="background:#a78bfa;box-shadow:0 0 6px #a78bfa;"></span>03 — NOISE RESIDUAL</div>
+          <img src="{{ noise_image }}" alt="Noise">
+        </div>
+
+        <div class="img-cell">
+          <div class="img-cell-label"><span class="dot" style="background:var(--red);box-shadow:0 0 6px var(--red);"></span>04 — TAMPERING HEATMAP</div>
+          <img src="{{ heatmap_image }}" alt="Heatmap">
+        </div>
+
+        <div class="img-cell">
+          <div class="img-cell-label"><span class="dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></span>05 — EDGE DETECTION</div>
+          <img src="{{ edge_image }}" alt="Edge">
+        </div>
+
+        {% if boxed_image %}
+        <div class="img-cell">
+          <div class="img-cell-label"><span class="dot" style="background:var(--red);box-shadow:0 0 6px var(--red);"></span>06 — ANOMALOUS REGIONS</div>
+          <img src="{{ boxed_image }}" alt="Regions">
+        </div>
+        {% endif %}
+
+      </div>
+
+      <!-- VISUAL GUIDE -->
+      <div style="margin-top:16px;">
+
+        <div class="guide-title">HOW TO READ — ANOMALOUS REGIONS MAP</div>
+        <div class="visual-guide">
+          <div class="guide-item">
+            <div class="guide-dot" style="border-color:#ff1e1e;"></div>
+            <span><b style="color:#ff1e1e;">RED BOX</b> = High suspicion — likely tampered region</span>
+          </div>
+          <div class="guide-item">
+            <div class="guide-dot" style="border-color:#ff8c00;"></div>
+            <span><b style="color:#ff8c00;">ORANGE BOX</b> = Moderate suspicion — possible edit</span>
+          </div>
+          <div class="guide-item">
+            <div class="guide-dot" style="border-color:#00ff96;"></div>
+            <span><b style="color:#00ff96;">GREEN BOX</b> = Low suspicion — region looks authentic</span>
+          </div>
+        </div>
+
+        <div class="guide-title">HOW TO READ — TAMPERING HEATMAP</div>
+        <div class="heatmap-guide">
+          <div class="hm-seg" style="background:#00007f;"></div>
+          <div class="hm-seg" style="background:#0000ff;"></div>
+          <div class="hm-seg" style="background:#0080ff;"></div>
+          <div class="hm-seg" style="background:#00ffff;"></div>
+          <div class="hm-seg" style="background:#80ff80;"></div>
+          <div class="hm-seg" style="background:#ffff00;"></div>
+          <div class="hm-seg" style="background:#ff8000;"></div>
+          <div class="hm-seg" style="background:#ff0000;"></div>
+          <div class="hm-seg" style="background:#800000;"></div>
+        </div>
+        <div class="heatmap-labels">
+          <span style="color:#4488ff;">◀ BLUE = AUTHENTIC (low error)</span>
+          <span style="color:#ff4444;">RED = TAMPERED (high error) ▶</span>
+        </div>
+
+        <div class="guide-title">HOW TO READ — ELA MAP</div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);line-height:2;padding:8px;border:1px solid var(--border);background:rgba(0,0,0,0.2);">
+          <span style="color:#fff;">DARK regions</span> = consistent compression = <span style="color:var(--green);">AUTHENTIC</span><br>
+          <span style="color:#fff;">BRIGHT regions</span> = compression inconsistency = <span style="color:var(--red);">TAMPERED</span><br>
+          <span style="color:#fff;">UNIFORM brightness</span> = image processed consistently = <span style="color:var(--green);">AUTHENTIC</span>
+        </div>
+
+      </div>
+
+      {% else %}
+      <div class="standby">
+        <div class="standby-icon">⬡</div>
+        <div class="standby-text">AWAITING IMAGE INPUT</div>
+        <div class="standby-text" style="font-size:10px;opacity:0.5;">UPLOAD AN IMAGE TO BEGIN FORENSIC ANALYSIS</div>
+      </div>
+      {% endif %}
+
+    </div>
+
+  </div>
+  </form>
+
+
+  <div class="footer">
+    FORENSICAI INTEGRITY SYSTEM //
+    <span>MEDUSHA THIRUNAVUKKARASU</span> //
+    MODULE: <span>CP6SL46O</span> //
+    BUILD: <span>2026.FINAL</span>
+  </div>
+
+</div>
+
+<script>
+// ── PARTICLES ──
+(function(){
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [];
+
+  function resize(){ W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+  window.addEventListener('resize', resize); resize();
+
+  for(let i = 0; i < 60; i++){
+    particles.push({
+      x: Math.random()*1400, y: Math.random()*900,
+      vx: (Math.random()-0.5)*0.3, vy: (Math.random()-0.5)*0.3,
+      r: Math.random()*1.5+0.3,
+      o: Math.random()*0.4+0.1
+    });
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if(p.x<0||p.x>W) p.vx*=-1;
+      if(p.y<0||p.y>H) p.vy*=-1;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(0,210,255,${p.o})`;
+      ctx.fill();
+    });
+    // draw connections
+    for(let i=0;i<particles.length;i++){
+      for(let j=i+1;j<particles.length;j++){
+        const dx=particles[i].x-particles[j].x, dy=particles[i].y-particles[j].y;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<120){
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(0,210,255,${0.08*(1-dist/120)})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ── FILE NAME ──
+function updateFileName(){
+  const input = document.getElementById('fileInput');
+  const display = document.getElementById('fileNameDisplay');
+  if(input.files.length > 0){
+    display.textContent = '✓ ' + input.files[0].name.toUpperCase();
+    display.style.color = '#00ff9d';
+  }
+}
+
+// ── ANIMATE BARS ON LOAD ──
+window.addEventListener('load', function(){
+  const scoreBar = document.getElementById('scoreBar');
+  const gb1 = document.getElementById('gb1');
+  const gb2 = document.getElementById('gb2');
+  const gb3 = document.getElementById('gb3');
+
+  setTimeout(function(){
+    if(scoreBar) scoreBar.style.width = '{{ final_score }}%';
+    if(gb1) gb1.style.width = '{{ ela_score }}%';
+    if(gb2) gb2.style.width = Math.min({{ noise_score }}, 100) + '%';
+    if(gb3) gb3.style.width = '{{ uniformity_score }}%';
+  }, 400);
+});
+</script>
+</body>
+</html>
+
+<!-- PATCH: Add visual guide styles -->
+<style>
+.visual-guide {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  margin-top: 12px; padding: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.3);
+}
+.guide-item {
+  display: flex; align-items: center; gap: 7px;
+  font-family: var(--font-mono); font-size: 10px; color: var(--muted);
+}
+.guide-dot {
+  width: 10px; height: 10px; border: 2px solid;
+  flex-shrink: 0;
+}
+.guide-title {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 2px; color: var(--muted);
+  margin-bottom: 6px; margin-top: 14px;
+}
+.heatmap-guide {
+  display: flex; align-items: center; gap: 0;
+  height: 12px; width: 100%; margin-top: 6px;
+  border: 1px solid var(--border);
+}
+.hm-seg { flex: 1; height: 100%; }
+.heatmap-labels {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 9px; color: var(--muted);
+  margin-top: 3px;
+}
+</style>
